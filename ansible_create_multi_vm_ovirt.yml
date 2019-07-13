@@ -96,4 +96,4 @@
     - name: Cleanup RHV auth token
       ovirt_auth:
         ovirt_auth: "{{ ovirt_auth }}"
-      state: absent
+        state: absent
