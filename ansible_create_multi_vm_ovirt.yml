@@ -8,11 +8,11 @@
 
     - name: Fill Hyervisor var with result script execution.
       include_vars: /tmp/best_hypervisor.yml
-      register: rhvhost
+      #register: rhvhost
     
     - name: Fill Storage Domain var with result script execution.
       include_vars: /tmp/best_storage.yml
-      register: storage_domain
+      #register: storage_domain
 
     - name: Login to RHV
       ovirt_auth:
