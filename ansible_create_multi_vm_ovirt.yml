@@ -1,0 +1,99 @@
+---
+- hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Execute script to get Hypervisor with more Free Mem.
+      local_action: script /tmp/get_info_api.bash
+
+    - name: Fill Hyervisor var with result script execution.
+      include_vars: /tmp/best_hypervisor.yml
+      register: rhvhost
+    
+    - name: Fill Storage Domain var with result script execution.
+      include_vars: /tmp/best_storage.yml
+      register: storage_domain
+
+    - name: Login to RHV
+      ovirt_auth:
+        url: "{{ engine_url | default(lookup('env','OVIRT_URL')) | default(omit) }}"
+        hostname: "{{ engine_fqdn | default(lookup('env','OVIRT_HOSTNAME')) | default(omit) }}"
+        username: "{{ engine_user | default(lookup('env','OVIRT_USERNAME')) | default(omit) }}"
+        password: "{{ engine_password | default(lookup('env','OVIRT_PASSWORD')) | default(omit) }}"
+        ca_file: "{{ engine_cafile | default(lookup('env','OVIRT_CAFILE')) | default(omit) }}"
+        insecure: "{{ engine_insecure | default(true) }}"
+      when: ovirt_auth is undefined or not ovirt_auth
+
+    - name: Create VMs
+      ovirt_vm:
+        comment: "Requerimiento: {{ txt_num_tk }} - Solicitante: {{ txt_who_request }}"
+        auth: "{{ ovirt_auth }}"
+        cluster: CL_CLIENT
+        host: "{{ rhvhost }}"
+        storage_domain: "{{ storage_domain }}"
+        template: "{{ dd_template }}"
+        name: "{{ vm_name }}0{{ item }}"
+        state: running
+        memory: "{{ dd_memory }}"
+        cpu_cores: "{{ dpb_cores }}"
+        high_availability: true
+        type: server
+        nics:
+          - name: nic1
+            profile_name: "{{ vnet_name }}"
+        cloud_init:
+          host_name: "{{ vm_name }}0{{ item }}"
+          user_name: root
+          root_password: "redhat"          
+          custom_script: |
+            runcmd:
+              - echo "net.ipv6.conf.all.disable_ipv6 = 1" >> /etc/sysctl.conf
+              - echo "net.ipv6.conf.default.disable_ipv6 = 1" >> /etc/sysctl.conf
+              - nmcli --fields UUID con show | awk '!/UUID/ {print}' | while read line; do nmcli con delete uuid $line; done
+              - nmcli con add type ethernet con-name eth0 ifname eth0
+              - nmcli con mod eth0
+                connection.autoconnect yes
+                ipv6.method ignore
+                ipv4.method manual
+                ipv4.addresses {{ txt_ips_addrs.split(',')[item - 1] }}/{{ dd_prefix }}
+                ipv4.gateway {{ txt_defgw }}
+                ipv4.dns-search "example.com lab.example.com"
+              - nmcli con up eth0
+              - systemctl restart systemd-sysctl
+              - yum -y remove cloud-init
+            coreos:
+              units:
+              - name: systemd-sysctl.service
+                command: restart
+        wait: true
+      loop: "{{ range(1, txt_numbers_vms + 1) | list }}"
+
+    - name: Check if VM was created
+      ovirt_vm_facts:
+        auth: "{{ ovirt_auth }}"
+        fetch_nested: true
+        nested_attributes:
+          - disk
+        all_content: yes
+        pattern: "name={{ vm_name }}0{{ item }}"
+      loop: "{{ range(1, txt_numbers_vms + 1) | list }}"
+
+    - debug:
+        msg: "Discos: {{ ovirt_vms[0].disk_attachments[0].disk.id }}"
+
+    - name: Get VM disks IDs
+      ovirt_disk:
+        auth: "{{ ovirt_auth }}"
+        id: "{{ item.disk.id }}"
+      with_items:
+        - "{{ ovirt_vms[0].disk_attachments }}"
+      register: vm_disks_list
+
+    - debug:
+        msg: "Disco: {{ item.disk.name }} "
+      with_items: "{{ vm_disks_list.results }}"
+
+    - name: Cleanup RHV auth token
+      ovirt_auth:
+        ovirt_auth: "{{ ovirt_auth }}"
+state: absent
