@@ -30,6 +30,7 @@
         auth: "{{ ovirt_auth }}"
         cluster: CL_CLIENT
         host: "{{ rhvhost }}"
+        clone: true
         storage_domain: "{{ storage_domain }}"
         template: "{{ dd_template }}"
         name: "{{ vm_name }}0{{ item }}"
