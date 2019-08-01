@@ -16,6 +16,12 @@ BEST_MEMFREE=0
 BEST_STORAGE=""
 BEST_FREESTORAGE=0
 
+#Clear files
+>$COMM_FILE
+>$STAT_FILE
+>$FILE_BEST_HOST
+>$FILE_BEST_STORAGE
+
 declare -A hosts_list
 declare -A storage_list
 
