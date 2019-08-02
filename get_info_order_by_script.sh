@@ -39,7 +39,7 @@ function _fill_best_placement_memory {
 function _fill_best_placement_storage {
 	for stdom in $(seq 1 $count_storage)
 	do
-		if [ ${storage_list[$stdom,2]} == "data" ]
+		if [ ${storage_list[$stdom,2]} == "data" ] && [ ${storage_list[$stdom,3]} == "1" ]
 		then
 			if [ ${storage_list[$stdom,1]} -gt $BEST_FREESTORAGE ]
 			then
@@ -86,6 +86,8 @@ function _get_storage_info {
 		storage_list[$stdom,1]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/available/text()')
 		# Get Storage Type
 		storage_list[$stdom,2]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/type/text()')
+		# Get Storage Comment to check Tier level
+		storage_list[$stdom,3]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/comment/text()' | sed 's/ //g' | tr '[:upper:]' '[:lower:]' | awk -F'tier' '{ print $NF '} | cut -c1 )
 	done
 
 	_fill_best_placement_storage
@@ -97,6 +99,8 @@ _get_apiservice "/api/storagedomains" "${COMM_FILE}"
 _get_storage_info
 
 #echo $BEST_MEMFREE
+#echo $BEST_PLACE
 echo "rhvhost: "$BEST_PLACE >> $FILE_BEST_HOST
-#	echo $BEST_FREESTORAGE
+#echo $BEST_FREESTORAGE
+#echo $BEST_STORAGE
 echo "storage_domain: "$BEST_STORAGE >> $FILE_BEST_STORAGE
