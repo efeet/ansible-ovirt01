@@ -37,9 +37,9 @@ function _fill_best_placement_memory {
 }
 
 function _fill_best_placement_storage {
-	for stdom in $(seq 1 $count_storage)
+	for stdom in $(seq 1 $1)
 	do
-		if [ ${storage_list[$stdom,2]} == "data" ] && [ ${storage_list[$stdom,3]} == "1" ]
+		if [  ${storage_list[$stdom,3]} == "1" ]
 		then
 			if [ ${storage_list[$stdom,1]} -gt $BEST_FREESTORAGE ]
 			then
@@ -48,6 +48,13 @@ function _fill_best_placement_storage {
 			fi
 		fi
 	done
+	if [ -z $BEST_STORAGE ]
+	then
+		echo "ERROR: No existen Storage Domain Tier 1."
+		echo "rhvhost: NOAPLICA" >> $FILE_BEST_HOST
+		echo "storage_domain: NOAPLICA" >> $FILE_BEST_STORAGE
+		exit 1
+	fi
 }
 
 function _get_apiservice {
@@ -77,20 +84,31 @@ function _get_href_and_name {
 }
 
 function _get_storage_info {
+	count_fill=0
 	count_storage=$(xmllint "${COMM_FILE}" --xpath 'count(//storage_domain)')
 	for stdom in $(seq 1 $count_storage)
 	do
-		# Get Storage Domain Name
-		storage_list[$stdom,0]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/name/text()')
-		# Get Storage Domain Available
-		storage_list[$stdom,1]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/available/text()')
-		# Get Storage Type
-		storage_list[$stdom,2]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/type/text()')
-		# Get Storage Comment to check Tier level
-		storage_list[$stdom,3]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/comment/text()' | sed 's/ //g' | tr '[:upper:]' '[:lower:]' | awk -F'tier' '{ print $NF '} | cut -c1 )
+		#Get Type of Storage Domain and only pass with Type: data.
+		data_type=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/type/text()')
+		if [ $data_type = "data" ]
+		then
+			count_fill=$(eval expr ${count_fill} + 1)
+			# Get Storage Domain Name
+			storage_list[$stdom,0]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/name/text()')
+			# Get Storage Domain Available
+			storage_list[$stdom,1]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/available/text()')
+			# Get Storage Type
+			storage_list[$stdom,2]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/type/text()')
+			# Get Storage Comment to check Tier level
+			storage_list[$stdom,3]=$(xmllint "${COMM_FILE}" --xpath '//storage_domain['$stdom']/comment/text()' | sed 's/ //g' | tr '[:upper:]' '[:lower:]' | awk -F'tier' '{ print $NF '} | cut -c1 )
+			if ! [[ ${storage_list[$stdom,3]} =~ ^[0-9]+$ ]]
+			then
+				echo "ERROR: El Tier del Almacenamiento no es correcto. -> ${storage_list[$stdom,3]}"
+				exit 1
+			fi
+		fi
 	done
-
-	_fill_best_placement_storage
+	_fill_best_placement_storage $count_fill
 }
 
 _get_apiservice "/api/hosts" "${COMM_FILE}"
@@ -98,9 +116,9 @@ _get_href_and_name
 _get_apiservice "/api/storagedomains" "${COMM_FILE}"
 _get_storage_info
 
-#echo $BEST_MEMFREE
-#echo $BEST_PLACE
+echo $BEST_MEMFREE
+echo $BEST_PLACE
 echo "rhvhost: "$BEST_PLACE >> $FILE_BEST_HOST
-#echo $BEST_FREESTORAGE
-#echo $BEST_STORAGE
+echo $BEST_FREESTORAGE
+echo $BEST_STORAGE
 echo "storage_domain: "$BEST_STORAGE >> $FILE_BEST_STORAGE
