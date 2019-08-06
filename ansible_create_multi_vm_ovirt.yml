@@ -32,9 +32,6 @@
         host: "{{ rhvhost }}"
         clone: true
         storage_domain: "{{ storage_domain }}"
-        disks:
-          - name: "{{ vm_name }}0{{ item }}_disk_os_base"
-            booteable: true
         template: "{{ dd_template }}"
         name: "{{ vm_name }}0{{ item }}"
         state: running
